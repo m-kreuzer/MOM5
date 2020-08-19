@@ -2672,6 +2672,7 @@ subroutine flux_land_to_ice( Time, Land, Ice, Land_Ice_Boundary )
   type(land_ice_boundary_type),  intent(inout):: Land_Ice_Boundary
   
   integer :: ier
+  logical :: used
   real, dimension(n_xgrid_runoff) :: ex_runoff, ex_calving, ex_runoff_hflx, ex_calving_hflx
   real, dimension(size(Land_Ice_Boundary%runoff,1),size(Land_Ice_Boundary%runoff,2),1) :: ice_buf
 !Balaji
@@ -2699,6 +2700,26 @@ if (do_runoff) then
   call data_override('ICE', 'calving', Land_Ice_Boundary%calving, Time)
   call data_override('ICE', 'runoff_hflx' , Land_Ice_Boundary%runoff_hflx , Time)
   call data_override('ICE', 'calving_hflx', Land_Ice_Boundary%calving_hflx, Time)
+
+  ! reading additional runoff fluxes from data_table e.g. from land ice model
+  !  unit[runoff_add] :         kg/m**2/s
+  !  unit[runoff_hflx_add] :    W/m**2
+  call data_override('ICE', 'runoff_add' , ice_buf(:,:,1) , Time, override=used)
+  if (used) then
+    if ( maxval(ice_buf) > 1 .or. minval(ice_buf) < 0 ) then
+      call error_mesg ('flux_exchange_mod', &
+          'runoff_add read from data_table is out of range', FATAL)
+    end if
+    Land_Ice_Boundary%runoff = Land_Ice_Boundary%runoff + ice_buf(:,:,1)
+  end if
+  call data_override('ICE', 'runoff_hflx_add' , ice_buf(:,:,1) , Time, override=used)
+  if (used) then
+    if ( maxval(ice_buf) > 0 .or. minval(ice_buf) < -1000 ) then
+      call error_mesg ('flux_exchange_mod', &
+          'runoff_hflx_add read from data_table is out of range', FATAL)
+    end if
+    Land_Ice_Boundary%runoff_hflx = Land_Ice_Boundary%runoff_hflx + ice_buf(:,:,1)
+  end if
 
   ! compute stock increment
   ice_buf(:,:,1) = Land_Ice_Boundary%runoff + Land_Ice_Boundary%calving
